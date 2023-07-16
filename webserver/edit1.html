@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NN Builder - botyWare</title>
+    <!--<link rel="stylesheet" href="./GUI.css">-->
+    <style>
+        * {
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.5.10/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.5.11/addons/p5.dom.min.js"></script>
+    <script>
+        //? GLOBAL VARIABLE,CONSTANT//
+        let config = {
+            msColor: 'red',
+            msHoverColor: 'red',
+            msBorderColor: '#919191',
+            msHoverBorderColor: '#B6D1E8',
+            msStrokeWeight: 3,
+            msSize: 40,
+            cellSize: 48
+        };
+        let nodes = [];
+        let draggingIndex = -1;
+        let prevTime = new Date();
+        
+        let Time = {
+            deltaTime: 0
+        };
+        
+        
+        //? CLASS//
+        class Node {
+            constructor(x, y, name, color) {
+                this.position = createVector(x, y);
+                this.name = name;
+                this.size = config.msSize;
+                this.strokeWeight = config.msStrokeWeight;
+                this.color = config.msColor;
+                this.borderColor = config.msBorderColor;
+                this.packetRate = [];
+                this.outgoing = [];
+            }
+        }
+        
+        
+        //? FUNCTION//
+        function setup() {
+            let canvas = createCanvas(window.innerWidth, window.innerHeight);
+            
+            // Spawn nodes
+            nodes.push(new Node(48 * 1, 48 * 1, 'in N'));
+            nodes.push(new Node(48 * 2, 48 * 2, 'N'));
+            nodes.push(new Node(48 * 3, 48 * 3, 'out N'));
+            nodes.push(new Node(48 * 4, 48 * 4, 'N'));
+            // nodes.push(new Node(48 * 24, 48 * 3, 'machine-learning'));
+            
+            // Connect nodes.
+            nodes[0].outgoing = [nodes[1], nodes[2]];	
+            nodes[1].outgoing = [nodes[2], nodes[3]];
+            nodes[3].outgoing = [nodes[2]];
+            // nodes[4].outgoing = [nodes[3]];
+            
+            for(let i=0;i<nodes.length;i++) {
+                let node = nodes[i];
+                for(let j=0;j<node.outgoing.length;j++) {
+                    let other = node.outgoing[j];
+                    other.packetRate[i] = 0;
+                }
+            }
+            
+            canvas.mouseMoved(mouseMove);
+        }
+        
+        function draw() {
+            background(45);
+            
+            let currentTime = new Date();
+            Time.deltaTime = currentTime - prevTime;
+            prevTime = currentTime;
+            
+            // Draw grid	
+            let xAmount = Math.round(width/48) + 1;
+            let yAmount = Math.round(height/48) + 1;
+            stroke(60);
+            strokeWeight(1);	
+            for(let x=0;x<xAmount;x++) {
+                let xPos = (x * config.cellSize) - config.cellSize/2;
+                for(let y=0;y<yAmount;y++) {			
+                    let yPos = (y * config.cellSize) - config.cellSize/2;
+                    line(xPos, yPos, xPos + (config.cellSize-1), yPos);
+                    line(xPos, yPos, xPos, yPos + (config.cellSize-1));
+                }
+            }
+            
+            // Create node connections
+            for(let i=0;i<nodes.length;i++) {
+                let ms = nodes[i];
+                for(let j=0;j<ms.outgoing.length;j++) {
+                    let other = ms.outgoing[j];
+                    stroke(80);
+                    strokeWeight(3);
+                    let from = ms.position;
+                    let to = other.position;
+                    line(from.x, from.y, to.x, to.y);
+                    
+                    let dst = dist(from.x, from.y, to.x, to.y);
+                    fill(config.msHoverBorderColor);
+                    noStroke();
+                    
+                    other.packetRate[i] += 1;
+                    let step = other.packetRate[i] / dst;
+                    if(other.packetRate[i] >= dst) other.packetRate[i] = 0;
+                    let packetX = lerp(from.x, to.x, step);
+                    let packetY = lerp(from.y, to.y, step);
+                    
+                    ellipse(packetX, packetY, 6, 6);
+                }
+            }
+            
+            // Create nodes
+            for(let i=0;i<nodes.length;i++) {
+                let ms = nodes[i];	
+                
+                fill(ms.color);
+                stroke(ms.borderColor);
+                strokeWeight(ms.strokeWeight);
+                ellipse(ms.position.x, ms.position.y, ms.size, ms.size);
+                
+                let msTextWidth = textWidth(ms.name);
+                if(ms.position.x < width/2) tagOffset = -(msTextWidth + 30);
+                else tagOffset = 30;
+                
+                fill('#B6D1E8');
+                noStroke();
+                rect(ms.position.x - 5 + tagOffset, ms.position.y - 7, textWidth(ms.name) + 10, 14, 4);
+                
+                fill(35).textSize(9);
+                text(ms.name, ms.position.x + tagOffset, ms.position.y + config.msStrokeWeight);
+            }
+        }
+        
+        function mouseMove() {
+            for(let i=0;i<nodes.length;i++) {
+                let ms = nodes[i];
+                let d = dist(mouseX, mouseY, ms.position.x, ms.position.y);
+                if(d < config.msSize/2 + config.msStrokeWeight) {
+                    ms.color = config.msHoverColor;
+                    ms.borderColor = config.msHoverBorderColor;
+                } else {
+                    ms.color = config.msColor;
+                    ms.borderColor = config.msBorderColor;
+                }
+            }
+            
+            if(mouseIsPressed) {
+                for(let i=0;i<nodes.length;i++) {
+                    let ms = nodes[i];
+                    let d = dist(mouseX, mouseY, ms.position.x, ms.position.y);
+                    if((d < config.msSize/2 + config.msStrokeWeight) && draggingIndex == -1)
+                        draggingIndex = i;
+                }
+            }
+            
+            if(draggingIndex != -1 && mouseIsPressed) {
+                let ms = nodes[draggingIndex];
+                // ms.position.x = mouseX;
+                // ms.position.y = mouseY;
+                let cs = config.cellSize;
+                ms.position.x = Math.round(mouseX / cs) * cs;
+                ms.position.y = Math.round(mouseY / cs) * cs;
+            }
+        }
+        
+        function mouseReleased() {
+            draggingIndex = -1;
+        }
+        </script>
+</body>
+</html>
